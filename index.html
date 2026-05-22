@@ -505,7 +505,7 @@ async function loadData(){
     try{
 
         const response =
-        await fetch("http://192.168.175.84:5000/api/live");
+        const response = await fetch("https://rut200-backend.onrender.com/api/live");
 
         const json = await response.json();
 
