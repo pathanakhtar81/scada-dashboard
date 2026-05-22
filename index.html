@@ -1,18 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RUT200 POWER MONITORING</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+    font-family: Arial, sans-serif;
+    background:#0f172a;
+    color:white;
+    padding:20px;
+}
+
+.header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+}
+
+.title{
+    font-size:28px;
+    font-weight:bold;
+    color:#38bdf8;
+}
+
+.status-box{
+    background:#1e293b;
+    padding:10px 15px;
+    border-radius:10px;
+}
+
+.main-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:20px;
+}
+
+.card{
+    background:#1e293b;
+    padding:20px;
+    border-radius:15px;
+    text-align:center;
+}
+
+.value{
+    font-size:40px;
+    font-weight:bold;
+}
+
+.green{color:#22c55e;}
+.yellow{color:#facc15;}
+.red{color:#ef4444;}
+
+.phase-bar{
+    display:flex;
+    gap:10px;
+    margin-bottom:15px;
+}
+
+.phase-dot{
+    width:12px;
+    height:12px;
+    border-radius:50%;
+    display:inline-block;
+}
+
+.green-dot{background:#22c55e;}
+.yellow-dot{background:#facc15;}
+.red-dot{background:#ef4444;}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+    <div class="title">RUT200 LIVE SCADA</div>
+
+    <div class="status-box">
+        Status: <span id="system-status">--</span><br>
+        <small id="update-time">--</small>
+    </div>
+
+</div>
+
+<div class="phase-bar">
+    <div>R <span id="r-dot" class="phase-dot green-dot"></span></div>
+    <div>Y <span id="y-dot" class="phase-dot green-dot"></span></div>
+    <div>B <span id="b-dot" class="phase-dot green-dot"></span></div>
+</div>
+
+<div class="main-grid">
+
+    <div class="card">
+        <div>Average VN</div>
+        <div class="value" id="v1">0</div>
+    </div>
+
+    <div class="card">
+        <div>R-N</div>
+        <div class="value" id="v2">0</div>
+    </div>
+
+    <div class="card">
+        <div>Y-N</div>
+        <div class="value" id="v3">0</div>
+    </div>
+
+    <div class="card">
+        <div>B-N</div>
+        <div class="value" id="v4">0</div>
+    </div>
+
+    <div class="card">
+        <div>Current (A)</div>
+        <div class="value" id="v5">0</div>
+        <canvas id="ampChart"></canvas>
+    </div>
+
+</div>
+
 <script>
 
 const API_URL = "https://rut200-backend-1.onrender.com/api/live";
 
 const ctx = document.getElementById('ampChart');
 
-const ampData = [];
-
 const ampChart = new Chart(ctx, {
     type: 'line',
     data: {
         labels: [],
         datasets: [{
-            label: 'Amp Trend',
-            data: ampData,
+            data: [],
             borderColor: '#22c55e',
             borderWidth: 2,
             tension: 0.3
@@ -20,37 +148,25 @@ const ampChart = new Chart(ctx, {
     },
     options: {
         responsive:true,
-        maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } },
+        plugins:{legend:{display:false}},
         scales:{
-            y:{ min:0, max:5, ticks:{ color:'white' }, grid:{ color:'#334155' } },
-            x:{ ticks:{ display:false }, grid:{ display:false } }
+            y:{min:0,max:5,ticks:{color:'white'}},
+            x:{display:false}
         }
     }
 });
 
-function safe(val){
-    return isNaN(val) ? 0 : val;
-}
-
-function setVoltageColor(id,value){
-    const el = document.getElementById(id);
-    if(value >= 220 && value <= 240) el.className="value green";
-    else if(value >= 210) el.className="value yellow";
+function setColor(id,val){
+    let el=document.getElementById(id);
+    if(val>=220) el.className="value green";
+    else if(val>=210) el.className="value yellow";
     else el.className="value red";
 }
 
-function setAmpColor(id,value){
-    const el = document.getElementById(id);
-    if(value <= 3) el.className="value green";
-    else if(value <= 4) el.className="value yellow";
-    else el.className="value red";
-}
-
-function setPhaseStatus(id,value){
-    const el = document.getElementById(id);
-    if(value >= 220) el.className="phase-dot green-dot";
-    else if(value >= 210) el.className="phase-dot yellow-dot";
+function setPhase(id,val){
+    let el=document.getElementById(id);
+    if(val>=220) el.className="phase-dot green-dot";
+    else if(val>=210) el.className="phase-dot yellow-dot";
     else el.className="phase-dot red-dot";
 }
 
@@ -58,39 +174,37 @@ async function loadData(){
 
     try{
 
-        const response = await fetch(API_URL);
-        const json = await response.json();
+        const res = await fetch(API_URL);
+        const data = await res.json();
 
-        console.log("LIVE DATA:", json); // DEBUG IMPORTANT
+        console.log(data);
 
-        const v1 = safe(parseFloat(json.Average_VN));
-        const v2 = safe(parseFloat(json.R_N));
-        const v3 = safe(parseFloat(json.Y_N));
-        const v4 = safe(parseFloat(json.B_N));
-        const amp = safe(parseFloat(json.Average_Amp));
+        let v1 = Number(data.Average_VN);
+        let v2 = Number(data.R_N);
+        let v3 = Number(data.Y_N);
+        let v4 = Number(data.B_N);
+        let amp = Number(data.Average_Amp);
 
         document.getElementById("v1").innerText = v1.toFixed(1);
         document.getElementById("v2").innerText = v2.toFixed(1);
         document.getElementById("v3").innerText = v3.toFixed(1);
         document.getElementById("v4").innerText = v4.toFixed(1);
-        document.getElementById("v5").innerText = amp.toFixed(1);
+        document.getElementById("v5").innerText = amp.toFixed(2);
 
-        setVoltageColor("v1",v1);
-        setVoltageColor("v2",v2);
-        setVoltageColor("v3",v3);
-        setVoltageColor("v4",v4);
+        setColor("v1",v1);
+        setColor("v2",v2);
+        setColor("v3",v3);
+        setColor("v4",v4);
 
-        setPhaseStatus("r-dot",v2);
-        setPhaseStatus("y-dot",v3);
-        setPhaseStatus("b-dot",v4);
+        setPhase("r-dot",v2);
+        setPhase("y-dot",v3);
+        setPhase("b-dot",v4);
 
-        setAmpColor("v5",amp);
-
-        document.getElementById("system-status").innerText = json.status || "OFFLINE";
-        document.getElementById("update-time").innerText = json.last_update || "--";
+        document.getElementById("system-status").innerText = data.status;
+        document.getElementById("update-time").innerText = data.last_update;
 
         // chart update
-        ampChart.data.labels.push('');
+        ampChart.data.labels.push("");
         ampChart.data.datasets[0].data.push(amp);
 
         if(ampChart.data.labels.length > 20){
@@ -98,16 +212,19 @@ async function loadData(){
             ampChart.data.datasets[0].data.shift();
         }
 
-        ampChart.update('none');
+        ampChart.update();
 
     }
-    catch(error){
-        console.log("ERROR:", error);
-        document.getElementById("system-status").innerText = "OFFLINE";
+    catch(err){
+        console.log("ERROR:",err);
+        document.getElementById("system-status").innerText="OFFLINE";
     }
 }
 
-setInterval(loadData, 1000);
+setInterval(loadData,2000);
 loadData();
 
 </script>
+
+</body>
+</html>
